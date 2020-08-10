@@ -55,6 +55,9 @@ import static com.netflix.discovery.PropertyBasedClientConfigConstants.*;
  *
  * @author Karthik Ranganathan
  *
+ * 默认eureka client 配置接口EurekaClientConfig实现类,配置文件名通过eureka.client.props指定,以.properties结尾。默认为eureka-client.properties
+ * properties配置中配置以本类中namespace变量指定，可以传入指定。
+ * 如果设置了eureka.environment属性,会额外把eureka-client-<eureka.environment>.properties文件内容加载至eureka-client.properties
  */
 @Singleton
 @ProvidedBy(DefaultEurekaClientConfigProvider.class)

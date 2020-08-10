@@ -63,6 +63,24 @@ import org.slf4j.LoggerFactory;
  *
  * @author Karthik Ranganathan, Greg Kim, David Liu
  *
+ * note:
+ *  eureka service 配置类为 EurekaServerConfig {@link EurekaServerConfig}
+ *  eureka client 配置类为 EurekaInstanceConfig {@link EurekaInstanceConfig}
+ *
+ *  EurekaBootStrap负责EurekaServer初始化的类
+ *
+ *
+ *  如果是eureka server的话，我们在玩儿spring cloud的时候，会将这个fetchRegistry给手动设置为false，如果是eureka server集群的话，就还是要保持为true。registerWithEureka也要设置为true。
+ *
+ * （1）读取EurekaClientConfig，包括TransportConfig
+ * （2）保存EurekaInstanceConfig和InstanceInfo
+ * （3）处理了是否要注册以及抓取注册表，如果不要的话，释放一些资源
+ * （4）支持调度的线程池
+ * （5）支持心跳的线程池
+ * （6）支持缓存刷新的线程池
+ * （7）EurekaTransport，支持底层的eureka client跟eureka server进行网络通信的组件，对网络通信组件进行了一些初始化的操作
+ * （8）如果要抓取注册表的话，在这里就会去抓取注册表了，但是如果说你配置了不抓取，那么这里就不抓取了
+ * （9）初始化调度任务：如果要抓取注册表的话，就会注册一个定时任务，按照你设定的那个抓取的间隔，每隔一定时间（默认是30s），去执行一个CacheRefreshThread，给放那个调度线程池里去了；如果要向eureka server进行注册的话，会搞一个定时任务，每隔一定时间发送心跳，执行一个HeartbeatThread；创建了服务实例副本传播器，将自己作为一个定时任务进行调度；创建了服务实例的状态变更的监听器，如果你配置了监听，那么就会注册监听器
  */
 public class EurekaBootStrap implements ServletContextListener {
     private static final Logger logger = LoggerFactory.getLogger(EurekaBootStrap.class);
@@ -103,15 +121,16 @@ public class EurekaBootStrap implements ServletContextListener {
 
     /**
      * Initializes Eureka, including syncing up with other Eureka peers and publishing the registry.
-     *
+     *  初始化Eureka服务,包括同步其他euerka及发布注册表
      * @see
      * javax.servlet.ServletContextListener#contextInitialized(javax.servlet.ServletContextEvent)
+     * EurekaBootStrap实现javax.servlet.ServletContextListener 因此会直接运行contextInitialized()方法
      */
     @Override
     public void contextInitialized(ServletContextEvent event) {
         try {
-            initEurekaEnvironment();
-            initEurekaServerContext();
+            initEurekaEnvironment(); //加载eureka运行环境
+            initEurekaServerContext();//加载eureka上下文
 
             ServletContext sc = event.getServletContext();
             sc.setAttribute(EurekaServerContext.class.getName(), serverContext);
@@ -123,11 +142,22 @@ public class EurekaBootStrap implements ServletContextListener {
 
     /**
      * Users can override to initialize the environment themselves.
+     * 用户可重写以初始化自己环境
      */
     protected void initEurekaEnvironment() throws Exception {
         logger.info("Setting the eureka configuration..");
-
+        /**
+         * ConfigurationManger 类是配置管理器，管理eureka所有配置，在初始化过程中，
+         * 会检查系统archaius.default.configuration.class及archaius.default.configuration.factory配置。如果配置了前者，它将通过className实例化无参构造函数，
+         * 如果配置了后者，它将调用getInstance()静态方法。这2种情况返回值Configuration对象将会包含eureka所有配置。
+         * ConfigurationManger创建过程createDefaultConfigInstance()：
+         *  1、ConcurrentCompositeConfiguration config = new ConcurrentCompositeConfiguration();创建config实例，这个类即是所谓的配置，包含eureka所有配置
+         *  2、config.addConfiguration添加URL_CONFIG,SYS_CONFIG,ENV_CONFIG
+         *
+         *  ConfigurationManager.getConfigInstance()内部是volatile+synchronized+double check模式的单例模式
+         */
         String dataCenter = ConfigurationManager.getConfigInstance().getString(EUREKA_DATACENTER);
+        //判断数据中心,如果为空就使用默认的数据中心
         if (dataCenter == null) {
             logger.info("Eureka data center value eureka.datacenter is not set, defaulting to default");
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_DATACENTER, DEFAULT);
@@ -135,6 +165,7 @@ public class EurekaBootStrap implements ServletContextListener {
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_DATACENTER, dataCenter);
         }
         String environment = ConfigurationManager.getConfigInstance().getString(EUREKA_ENVIRONMENT);
+        //eureka 运行环境 Environment没有配置的话,就默认为test
         if (environment == null) {
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_ENVIRONMENT, TEST);
             logger.info("Eureka environment value eureka.environment is not set, defaulting to test");
@@ -145,9 +176,16 @@ public class EurekaBootStrap implements ServletContextListener {
      * init hook for server context. Override for custom logic.
      */
     protected void initEurekaServerContext() throws Exception {
+        //1、加载eureka server properties文件及配置
+        /**
+         * DefaultEurekaServerConfig 是EurekaServerConfig接口的默认实现类,读取配置文件中eureka.server.props指定的文件名并以.properties结尾的文件
+         *  若文件名没有指定,默认文件名为eureka-server.properties。properties配置中配置以传入本类的namespace属性值开头。
+         *  如果指定eureka.environment属性,会把eureka-server-<eureka.environment>.properties 文件加载至eureka-server.properties中
+         */
         EurekaServerConfig eurekaServerConfig = new DefaultEurekaServerConfig();
 
-        // For backward compatibility
+
+        // For backward compatibility 为了兼容性同时使用JsonXStream、XmlXstream
         JsonXStream.getInstance().registerConverter(new V1AwareInstanceInfoConverter(), XStream.PRIORITY_VERY_HIGH);
         XmlXStream.getInstance().registerConverter(new V1AwareInstanceInfoConverter(), XStream.PRIORITY_VERY_HIGH);
 
@@ -155,22 +193,33 @@ public class EurekaBootStrap implements ServletContextListener {
         logger.info(eurekaServerConfig.getJsonCodecName());
         ServerCodecs serverCodecs = new DefaultServerCodecs(eurekaServerConfig);
 
+        //2、初始化ApplicationInfoManager
         ApplicationInfoManager applicationInfoManager = null;
 
         if (eurekaClient == null) {
+            //3、初始化eureka server内部的一个eureka client,用来跟其他eureka-server节点做注册和通信
             EurekaInstanceConfig instanceConfig = isCloud(ConfigurationManager.getDeploymentContext())
                     ? new CloudInstanceConfig()
                     : new MyDataCenterInstanceConfig();
-            
+
             applicationInfoManager = new ApplicationInfoManager(
                     instanceConfig, new EurekaConfigBasedInstanceInfoProvider(instanceConfig).get());
-            
+
+            //加载eureka-server内部eureka-client配置
+            /**
+             *  默认eureka client 配置接口EurekaClientConfig实现类,配置文件名通过eureka.client.props指定,以.properties结尾。默认为eureka-client.properties
+             *  properties配置中配置以本类中namespace变量指定，可以传入指定。
+             *  如果设置了eureka.environment属性,会额外把eureka-client-<eureka.environment>.properties文件内容加载至eureka-client.properties
+             */
             EurekaClientConfig eurekaClientConfig = new DefaultEurekaClientConfig();
+
+
             eurekaClient = new DiscoveryClient(applicationInfoManager, eurekaClientConfig);
         } else {
             applicationInfoManager = eurekaClient.getApplicationInfoManager();
         }
 
+        //4、处理注册相关
         PeerAwareInstanceRegistry registry;
         if (isAws(applicationInfoManager.getInfo())) {
             registry = new AwsInstanceRegistry(
@@ -189,7 +238,7 @@ public class EurekaBootStrap implements ServletContextListener {
                     eurekaClient
             );
         }
-
+        //5、处理peer节点相关
         PeerEurekaNodes peerEurekaNodes = getPeerEurekaNodes(
                 registry,
                 eurekaServerConfig,
@@ -197,7 +246,7 @@ public class EurekaBootStrap implements ServletContextListener {
                 serverCodecs,
                 applicationInfoManager
         );
-
+        //6、完成eureka-server上下文的构建及初始化
         serverContext = new DefaultEurekaServerContext(
                 eurekaServerConfig,
                 serverCodecs,
@@ -211,11 +260,11 @@ public class EurekaBootStrap implements ServletContextListener {
         serverContext.initialize();
         logger.info("Initialized server context");
 
-        // Copy registry from neighboring eureka node
+        // Copy registry from neighboring eureka node 从其他eureka节点copy注册信息
         int registryCount = registry.syncUp();
         registry.openForTraffic(applicationInfoManager, registryCount);
 
-        // Register all monitoring statistics.
+        // Register all monitoring statistics. 注册所有监控统计项
         EurekaMonitors.registerAllStats();
     }
     

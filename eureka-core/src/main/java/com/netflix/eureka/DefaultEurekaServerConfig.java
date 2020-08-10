@@ -60,6 +60,9 @@ import org.slf4j.LoggerFactory;
  *
  * @author Karthik Ranganathan
  *
+ * DefaultEurekaServerConfig 是EurekaServerConfig接口的默认实现类,读取配置文件中eureka.server.props指定的文件名并以.properties结尾的文件
+ * 若文件名没有指定,默认文件名为eureka-server.properties。properties配置中配置以传入本类的namespace属性值开头。
+ * 如果指定eureka.environment属性,会把eureka-server-<eureka.environment>.properties 文件加载至eureka-server.properties中
  */
 @Singleton
 public class DefaultEurekaServerConfig implements EurekaServerConfig {
@@ -111,6 +114,8 @@ public class DefaultEurekaServerConfig implements EurekaServerConfig {
         try {
             // ConfigurationManager
             // .loadPropertiesFromResources(eurekaPropsFile);
+            // 先是将eureka-server.properties中的配置加载到了一个Properties对象中，然后将Properties对象中的配置放到ConfigurationManager中去，
+            // 此时ConfigurationManager中去就有了所有的配置了
             ConfigurationManager
                     .loadCascadedPropertiesFromResources(eurekaPropsFile);
         } catch (IOException e) {

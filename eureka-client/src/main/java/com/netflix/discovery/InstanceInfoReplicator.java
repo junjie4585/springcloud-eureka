@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *   on-demand update).
  *
  *   @author dliu
+ *
+ *   一个更新和复制本地实例信息到远程服务的任务。
  */
 class InstanceInfoReplicator implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(InstanceInfoReplicator.class);
