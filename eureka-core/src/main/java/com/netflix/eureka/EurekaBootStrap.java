@@ -220,7 +220,14 @@ public class EurekaBootStrap implements ServletContextListener {
         }
 
         //4、处理注册相关
+        /**
+         * PeerAware:可以识别eureka server集群的。多个同样的东西组成一个集群，peers：集群，peer就是集群中的一个实例
+         * InstanceRegistry:实例注册，服务实例注册。注册表，这个里面放了所有的主车道这个eureka server上的服务实例，就是一个服务实例的注册表。
+         * PeerAwareInstanceRegistry：可以感知eureka server集群的服务实例注册表，eureka client(作为服务实例)过来注册的注册表，而且这个注册表是可以感知到eureka
+         * server集群的，假如有一个eureka server集群的话，这里包含了其他eureka server中的服务实例注册表信息的。
+         */
         PeerAwareInstanceRegistry registry;
+        //是否为AwsInstance
         if (isAws(applicationInfoManager.getInfo())) {
             registry = new AwsInstanceRegistry(
                     eurekaServerConfig,
@@ -231,6 +238,7 @@ public class EurekaBootStrap implements ServletContextListener {
             awsBinder = new AwsBinderDelegate(eurekaServerConfig, eurekaClient.getEurekaClientConfig(), registry, applicationInfoManager);
             awsBinder.start();
         } else {
+            //创建PeerAwareInstanceRegistryImpl
             registry = new PeerAwareInstanceRegistryImpl(
                     eurekaServerConfig,
                     eurekaClient.getEurekaClientConfig(),

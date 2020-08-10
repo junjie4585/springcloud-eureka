@@ -87,6 +87,7 @@ import javax.inject.Singleton;
  *
  * @author Karthik Ranganathan, Greg Kim
  *
+ *
  */
 @Singleton
 public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry implements PeerAwareInstanceRegistry {
