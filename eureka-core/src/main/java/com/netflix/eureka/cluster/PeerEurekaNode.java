@@ -44,6 +44,8 @@ import org.slf4j.LoggerFactory;
  *
  * @author Karthik Ranganathan, Greg Kim
  *
+ * PeerEurekaNode代表了一个实例节点,它可以共享该节点信息。
+ * 该类处理将复制所有更新操作如：注册、更新、取消、到期和状态变更 给其所代表的eureka节点
  */
 public class PeerEurekaNode {
 

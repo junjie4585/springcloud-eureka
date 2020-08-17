@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
  * Helper class to manage lifecycle of a collection of {@link PeerEurekaNode}s.
  *
  * @author Tomasz Bak
+ * 协助类用来管理peerEurekaNode集合的生命周期
  */
 @Singleton
 public class PeerEurekaNodes {

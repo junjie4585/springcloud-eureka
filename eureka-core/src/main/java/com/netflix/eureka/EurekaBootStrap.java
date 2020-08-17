@@ -48,6 +48,14 @@ import com.netflix.eureka.util.EurekaMonitors;
 import com.thoughtworks.xstream.XStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+/**
+ * Eureka-server启动流程总结：
+ * 初始化环境（数据中心、运行环境）--》读取eureka-server.properties配置文件 --》将自己作为服务实例从eureka-client.properties中读取服务实例配置，构造服务实例信息（InstanceInfo）,构造服务实例信息管理器（ApplicationManager）
+ * --> 将自己作为eureka-client从eureka-client.properties中读取eureka client配置，基于服务实例和eureka client配置构造EurekaClient(DiscoverClient) 这个实例里会构造一些定时任务调度器等信息
+ * --》 构造感知eureka server集群的注册表：PeerAwareInstanceRegistry. --> 构造一个eureka server集群节点的信息：PeerEurekaNodes
+ * --> 基于eureka server配置、注册表、eureka server集群、服务实例 构造一个eureka server上下文:EurekaServerContext
+ * --> EurekaServerContext进行初始化：a、更新eureka server集群信息。b、基于eureka server集群信息初始化注册表
+ */
 
 /**
  * The class that kick starts the eureka server.
@@ -238,7 +246,7 @@ public class EurekaBootStrap implements ServletContextListener {
             awsBinder = new AwsBinderDelegate(eurekaServerConfig, eurekaClient.getEurekaClientConfig(), registry, applicationInfoManager);
             awsBinder.start();
         } else {
-            //创建PeerAwareInstanceRegistryImpl
+            //创建PeerAwareInstanceRegistry,最近取消、注册的实例都会保存到registry
             registry = new PeerAwareInstanceRegistryImpl(
                     eurekaServerConfig,
                     eurekaClient.getEurekaClientConfig(),
@@ -247,6 +255,9 @@ public class EurekaBootStrap implements ServletContextListener {
             );
         }
         //5、处理peer节点相关
+        /**
+         * peerEurekaNodes 代表eureka server集群
+         */
         PeerEurekaNodes peerEurekaNodes = getPeerEurekaNodes(
                 registry,
                 eurekaServerConfig,
@@ -262,13 +273,19 @@ public class EurekaBootStrap implements ServletContextListener {
                 peerEurekaNodes,
                 applicationInfoManager
         );
-
+        //将上下文放到 holder
         EurekaServerContextHolder.initialize(serverContext);
 
+        /**
+         * 将eureka server集群启动起来，里面会更新eureka server集群的信息，让当前eureka-server能感知到所有其他的eureka-server
+         * 然后通过定时任务（peerEurekaNodes）,就是一个后台线程，定期更新eureka-server集群信息
+         * registry.init：基于eureka-server集群信息，初始化注册表，将所有eureka-server集群中eureka-server的注册表信息抓取过来放到本地注册表
+         */
         serverContext.initialize();
         logger.info("Initialized server context");
 
         // Copy registry from neighboring eureka node 从其他eureka节点copy注册信息
+        // 从相邻的eureka-server节点拷贝注册表信息,如果拷贝失败就找下一个
         int registryCount = registry.syncUp();
         registry.openForTraffic(applicationInfoManager, registryCount);
 

@@ -71,6 +71,7 @@ import static com.netflix.eureka.util.EurekaMonitors.*;
  * </p>
  *
  * @author Karthik Ranganathan
+ * 处理所有来自eureka客户端注册表请求,主要操作有：注册、续约、取消、到期、变更状态。注册表仅存储增量请求。
  *
  */
 public abstract class AbstractInstanceRegistry implements InstanceRegistry {

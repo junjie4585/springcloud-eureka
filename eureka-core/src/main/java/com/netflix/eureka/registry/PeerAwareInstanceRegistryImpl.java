@@ -87,7 +87,7 @@ import javax.inject.Singleton;
  *
  * @author Karthik Ranganathan, Greg Kim
  *
- *
+ *  复制所有AbstractInstanceRegistry操作,保持eureka所有节点同步。
  */
 @Singleton
 public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry implements PeerAwareInstanceRegistry {
@@ -125,6 +125,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
     private Timer timer = new Timer(
             "ReplicaAwareInstanceRegistry - RenewalThresholdUpdater", true);
 
+    //@Inject是根据类型进行自动装配的
     @Inject
     public PeerAwareInstanceRegistryImpl(
             EurekaServerConfig serverConfig,
