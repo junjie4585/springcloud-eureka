@@ -110,6 +110,20 @@ import com.netflix.servo.monitor.Stopwatch;
  * @author Karthik Ranganathan, Greg Kim
  * @author Spencer Gibb
  *
+ * EurekaClient是如何注册的：
+ * 1、DiscoveryClient 构造函数会初始化Eureka client 相关定时任务，定时任务里会启动instanceInfo互相复制的任务，即InstanceInfoReplicator.start()
+ * 2、InstanceInfoReplicator.start()将自己作为一个线程放到调度线程池中，默认延时40s去执行线程，并将isDirty设置成true
+ * 3、执行线程是，执行run()方法，线程先是找DiscoveryClient.refreshInstanceInfo(),该方法调用ApplicationInfoManager的一些方法刷新了一下服务实例配置
+ *  如果配置有改变则刷新配置，用健康检查器检查实例状态，将状态设置到ApplicationInfoManager，更新服务实例状态
+ * 4、isDirty设置为true并设置isDirtyWithTime，InstanceInfoReplicator.run()判断isDirtyWithTime不为空,执行服务注册
+ * 5、服务注册基于DiscoveryClient.register()方法,调用EurekaTransport.registrationClient 执行register()，将InstanceInfo服务实例的信息，
+ *  通过http请求，调用eureka server 对外暴露的restful接口。在构造的时候执行DiscoveryClient.scheduleServerEndpointTask(),该方法初始化了专门用于注册
+ *  的ReginstrationClient
+ * 6、EurekaHttpClients.registrationClientFactory()方法调用 canonicalClientFactory() 通过SessionedEurekaHttpClient.register()方法
+ *  最终调用AbstractJersey2EurekaHttpClient.register()
+ * 7、Eureka大量基于jersey框架，在eureka server提供restful接口。在eureka client 发送请求到 eureka server 一定是基于jersey框架，发送的http restful接口调用请求
+ * 8、真正执行注册请求的是eureka-client-jersey2工程里的AbstractJersey2EurekaHttpClient，请求http://localhost:8080/v2/apps/ServiceA，将服务实例的信息发送过去
+ *
  */
 @Singleton
 public class DiscoveryClient implements EurekaClient {
@@ -334,6 +348,7 @@ public class DiscoveryClient implements EurekaClient {
         }
         
         this.applicationInfoManager = applicationInfoManager;
+        //创建一个配置实例,这里会有eureka的各种信息
         InstanceInfo myInfo = applicationInfoManager.getInfo();
 
         clientConfig = config;

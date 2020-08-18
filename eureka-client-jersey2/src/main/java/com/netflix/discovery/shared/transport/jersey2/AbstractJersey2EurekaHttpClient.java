@@ -86,6 +86,11 @@ public abstract class AbstractJersey2EurekaHttpClient implements EurekaHttpClien
         String urlPath = "apps/" + info.getAppName();
         Response response = null;
         try {
+            /**
+             * 发送请求 类似：http://localhost:8080/v2/apps/serviceA
+             * 发送的是POST请求,服务实例对象被打包成json发送，包括主机、ip、端口。
+             * eureka server 就知道serviceA这个服务有一个服务实例 比如是在192.168.31.109、host-01、8761端口
+             */
             Builder resourceBuilder = jerseyClient.target(serviceUrl).path(urlPath).request();
             addExtraProperties(resourceBuilder);
             addExtraHeaders(resourceBuilder);

@@ -40,6 +40,18 @@ import com.netflix.discovery.EurekaClientConfig;
  * In this example, the program tries to get the example from the EurekaClient, and then
  * makes a REST call to a supported service endpoint
  *
+ * Eureka clent 启动流程：
+ * a、从eureka-client.properties中读取服务实例配置。b、构造服务实例InstanceInfo。c、构造服务实例管理器ApplicationInfoManager.
+ * --> 从Eureka-client.properties中读取eureka client配置
+ * --> 基于eureka client配置和服务实例管理器构造一个EurekaClient
+ * --> 将服务实例、服务实例管理器、eureka client配置、网络通信配置等信息都保存一下
+ * --> 如果需要抓取注册表服务注册信息，会初始化两个ThresholdLevelMetric和一些Monitor
+ * --> 初始化线程池secheduler、heartbeatExecutor、cacheRefreshExecutor
+ * --> 初始化网络通信组件EurekaTransport
+ * --> 尝试抓取注册表，如果抓取不成功，会从备用的注册表地址去抓取
+ * --> 启动任务调度：a、定时抓取注册表调度任务。b、给eureka server定时发送心跳调度任务。c、定时复制实例信息的调度任务。d、注册一个状态变更的监听器
+ * --> 将自己注册一个监控
+ *
  */
 public class ExampleEurekaClient {
 
@@ -117,6 +129,12 @@ public class ExampleEurekaClient {
     public static void main(String[] args) {
         ExampleEurekaClient sampleClient = new ExampleEurekaClient();
 
+        // MyDataCenterInstanceConfig 就是加载eureka-client.properties配置信息,形成一个服务实例的配置EurekaInstanceConfig
+        // 基于EurekaClient配置，构造了一个服务实例（InstanceInfo）
+        // 基于eureka client配置和服务实例，构造了一个服务实例管理器（ApplicationInfoManager）
+        // 读取eureka-client.properties配置文件，形成了一个eureka client的配置，接口对外提供eureka client的配置项的读取
+        // 基于eureka client的配置，和服务实例管理器，来构造了一个EurekaClient（DiscoveryClient
+        // ），保存了一些配置，处理服务的注册和注册表的抓取，启动了几个线程池，启动了网络通信组件，启动了一些调度任务，注册了监控项
         // create the client
         ApplicationInfoManager applicationInfoManager = initializeApplicationInfoManager(new MyDataCenterInstanceConfig());
         EurekaClient client = initializeEurekaClient(applicationInfoManager, new DefaultEurekaClientConfig());
