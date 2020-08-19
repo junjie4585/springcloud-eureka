@@ -50,6 +50,12 @@ import com.netflix.eureka.util.EurekaMonitors;
  *
  * @author Karthik Ranganathan, Greg Kim
  *
+ * Eureka服务注册流程：
+ * 1、eureka client 初始化时调度执行InstanceInfoReplicator组件，执行服务注册逻辑
+ * 2、AbstractJersey2EurekaHttpClient发送Http请求,调用eureka server的restful接口
+ * 3、eureka server web.xml中配置jersey servlet拦截所有的请求,将注册请求分发给ApplicationsResource,ApplicationResource.addInstance().
+ * 4、将服务实例信息放到一个map中“ServiceA”: {“001”: Lease<InstanceInfo>,“002”: Lease<InstanceInfo>...}
+ * 5、访问eureka server 控制台 status.jsp,遍历显示从map中获取到的服务信息
  */
 @Path("/{version}/apps")
 @Produces({"application/xml", "application/json"})

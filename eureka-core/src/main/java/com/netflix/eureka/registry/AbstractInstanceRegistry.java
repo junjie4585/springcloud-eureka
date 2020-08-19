@@ -193,7 +193,19 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
      */
     public void register(InstanceInfo registrant, int leaseDuration, boolean isReplication) {
         try {
+            //1、读锁,方便多个实例同时来注册
             read.lock();
+            //2、ConcurrentHashMap<String, Map<String, Lease<InstanceInfo>>> registry ,ConcurrentHashMap的key为appName, Map的key是appId
+            //{
+            //    “ServiceA”: {
+            //        “001”: Lease<InstanceInfo>,
+            //        “002”: Lease<InstanceInfo>,
+            //        “003”: Lease<InstanceInfo>
+            //    },
+            //    “ServiceB”: {
+            //        “001”: Lease<InstanceInfo>
+            //    }
+            //}
             Map<String, Lease<InstanceInfo>> gMap = registry.get(registrant.getAppName());
             REGISTER.increment(isReplication);
             if (gMap == null) {
@@ -234,6 +246,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 lease.setServiceUpTimestamp(existingLease.getServiceUpTimestamp());
             }
             gMap.put(registrant.getId(), lease);
+            //recentRegisteredQueue 最近注册队列(1000)
             recentRegisteredQueue.add(new Pair<Long, String>(
                     System.currentTimeMillis(),
                     registrant.getAppName() + "(" + registrant.getId() + ")"));
@@ -261,6 +274,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 lease.serviceUp();
             }
             registrant.setActionType(ActionType.ADDED);
+            //recentlyChangedQueue 最近更改队列
             recentlyChangedQueue.add(new RecentlyChangedItem(lease));
             registrant.setLastUpdatedTimestamp();
             invalidateCache(registrant.getAppName(), registrant.getVIPAddress(), registrant.getSecureVipAddress());
