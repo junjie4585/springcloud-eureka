@@ -971,6 +971,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         Map<String, Application> applicationInstancesMap = new HashMap<String, Application>();
         try {
             write.lock();
+            //recentlyChangedQueue 从recentlyChangedQueue中获取最近改变的clients注册信息列表
             Iterator<RecentlyChangedItem> iter = this.recentlyChangedQueue.iterator();
             logger.debug("The number of elements in the delta queue is :{}", this.recentlyChangedQueue.size());
             while (iter.hasNext()) {
@@ -1011,6 +1012,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 }
             }
 
+            //无论是全量抓取还是增量抓取，最后都会返回一个全量注册表的hash值
             Applications allApps = getApplicationsFromMultipleRegions(remoteRegions);
             apps.setAppsHashCode(allApps.getReconcileHashCode());
             return apps;

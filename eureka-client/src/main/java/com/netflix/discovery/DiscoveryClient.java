@@ -1116,6 +1116,7 @@ public class DiscoveryClient implements EurekaClient {
 
         logger.info("Getting all instance registry info from the eureka server");
 
+        //获取全量 registry information 是eurekaTransport.queryClient.getApplications(remoteRegionsRef.get())
         Applications apps = null;
         EurekaHttpResponse<Applications> httpResponse = clientConfig.getRegistryRefreshSingleVipAddress() == null
                 ? eurekaTransport.queryClient.getApplications(remoteRegionsRef.get())
@@ -1147,6 +1148,11 @@ public class DiscoveryClient implements EurekaClient {
      *
      * @return the client response
      * @throws Throwable on error
+     * 增量delta流程：
+     * 1、获取delta增量数据
+     * 2、根据增量数据和本地注册表数据进行合并
+     * 3、合并之后，计算本地注册表中全量信息的hashcode
+     * 4、如果本地全量信息hashCode值和server端返回的全量hashcode值不一致则再全量获取一次（reconcileAndLogDifference）
      */
     private void getAndUpdateDelta(Applications applications) throws Throwable {
         long currentUpdateGeneration = fetchRegistryGeneration.get();
