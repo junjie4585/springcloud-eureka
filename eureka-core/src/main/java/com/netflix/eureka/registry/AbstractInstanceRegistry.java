@@ -291,6 +291,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
      * <p>
      * This is normally invoked by a client when it shuts down informing the
      * server to remove the instance from traffic.
+     * 这个方法一版是客户端调用，当它shutdown时通知服务端去除客户端对应实例
      * </p>
      *
      * @param appName the application name of the application.
@@ -311,13 +312,16 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
      */
     protected boolean internalCancel(String appName, String id, boolean isReplication) {
         try {
-            read.lock();
+            read.lock();//加上读锁，支持多服务实例下线
             CANCEL.increment(isReplication);
-            Map<String, Lease<InstanceInfo>> gMap = registry.get(appName);
+            //获取对应appName注册表信息
+            Map<String, Lease<InstanceInfo>> gMap = registry.get(appName);//通过appName获取注册表信息map
             Lease<InstanceInfo> leaseToCancel = null;
             if (gMap != null) {
-                leaseToCancel = gMap.remove(id);
+                //根据实例ID 删除注册表中对应实例
+                leaseToCancel = gMap.remove(id);//通过appId移除对应注册表信息
             }
+            //把该实例信息记录到最近取消的注册表信息队列
             recentCanceledQueue.add(new Pair<Long, String>(System.currentTimeMillis(), appName + "(" + id + ")"));
             InstanceStatus instanceStatus = overriddenInstanceStatusMap.remove(id);
             if (instanceStatus != null) {
@@ -328,18 +332,21 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
                 logger.warn("DS: Registry: cancel failed because Lease is not registered for: {}/{}", appName, id);
                 return false;
             } else {
-                leaseToCancel.cancel();
+                //执行下线  只是更新下线时间戳
+                leaseToCancel.cancel(); //更新Lease中的服务实例下线时间
                 InstanceInfo instanceInfo = leaseToCancel.getHolder();
                 String vip = null;
                 String svip = null;
                 if (instanceInfo != null) {
                     instanceInfo.setActionType(ActionType.DELETED);
-                    recentlyChangedQueue.add(new RecentlyChangedItem(leaseToCancel));
+                    // 最近更新的队列中加入此服务实例信息
+                    recentlyChangedQueue.add(new RecentlyChangedItem(leaseToCancel));//recentlyChangedQueue添加该服务实例
                     instanceInfo.setLastUpdatedTimestamp();
                     vip = instanceInfo.getVIPAddress();
                     svip = instanceInfo.getSecureVipAddress();
                 }
-                invalidateCache(appName, vip, svip);
+                //清除缓存中对应实例数据 这里会存在一个问题，如果一个服务下线了，读写缓存更新了，但是只读缓存并未更新，30s后由定时任务刷新 读写缓存的数据到了只读缓存，这时其他客户端才会感知到该下线的服务实例
+                invalidateCache(appName, vip, svip);//invalidateCache() 使注册表的读写缓存失效
                 logger.info("Cancelled instance {}/{} (replication={})", appName, id, isReplication);
             }
         } finally {
@@ -1260,6 +1267,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
         @Override
         public void run() {
             try {
+                //获取补偿时间
                 long compensationTimeMs = getCompensationTimeMs();
                 logger.info("Running the evict task with compensationTime {}ms", compensationTimeMs);
                 evict(compensationTimeMs);
@@ -1275,6 +1283,7 @@ public abstract class AbstractInstanceRegistry implements InstanceRegistry {
          * according to the configured cycle.
          */
         long getCompensationTimeMs() {
+            //
             long currNanos = getCurrentTimeNano();
             long lastNanos = lastExecutionNanosRef.getAndSet(currNanos);
             if (lastNanos == 0l) {

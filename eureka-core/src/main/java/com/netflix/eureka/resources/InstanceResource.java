@@ -109,6 +109,7 @@ public class InstanceResource {
             @QueryParam("status") String status,
             @QueryParam("lastDirtyTimestamp") String lastDirtyTimestamp) {
         boolean isFromReplicaNode = "true".equals(isReplication);
+        //com.netflix.eureka.registry.AbstractInstanceRegistry.renew()
         boolean isSuccess = registry.renew(app.getName(), id, isFromReplicaNode);
 
         // Not found in the registry, immediately ask for a register

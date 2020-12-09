@@ -118,6 +118,7 @@ public abstract class AbstractJersey2EurekaHttpClient implements EurekaHttpClien
             Builder resourceBuilder = jerseyClient.target(serviceUrl).path(urlPath).request();
             addExtraProperties(resourceBuilder);
             addExtraHeaders(resourceBuilder);
+            //HTTP delete方式
             response = resourceBuilder.delete();
             return anEurekaHttpResponse(response.getStatus()).headers(headersOf(response)).build();
         } finally {
@@ -147,6 +148,7 @@ public abstract class AbstractJersey2EurekaHttpClient implements EurekaHttpClien
             addExtraProperties(requestBuilder);
             addExtraHeaders(requestBuilder);
             requestBuilder.accept(MediaType.APPLICATION_JSON_TYPE);
+            //requestBuilder.put 使用HTTP put方式
             response = requestBuilder.put(Entity.entity("{}", MediaType.APPLICATION_JSON_TYPE)); // Jersey2 refuses to handle PUT with no body
             EurekaHttpResponseBuilder<InstanceInfo> eurekaResponseBuilder = anEurekaHttpResponse(response.getStatus(), InstanceInfo.class).headers(headersOf(response));
             if (response.hasEntity()) {

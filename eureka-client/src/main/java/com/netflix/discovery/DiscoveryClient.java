@@ -419,7 +419,7 @@ public class DiscoveryClient implements EurekaClient {
                             .setDaemon(true)
                             .build());
 
-            //创建一个心跳检查的线程池，最大线程数为5
+            //创建一个心跳检查的线程池，最大线程数为5 默认30s
             heartbeatExecutor = new ThreadPoolExecutor(
                     1, clientConfig.getHeartbeatExecutorThreadPoolSize(), 0, TimeUnit.SECONDS,
                     new SynchronousQueue<Runnable>(),
@@ -907,6 +907,17 @@ public class DiscoveryClient implements EurekaClient {
 
     /**
      * Renew with the eureka service by making the appropriate REST call
+     * （1）DiscoveryClient初始化的时候，会去调度一堆定时任务，其中有一个就是HeartbeatThread，心跳线程
+     *
+     * （2）在这里可以看到，默认是每隔30秒去发送一次心跳，每隔30秒执行一次HeartbeatTHread线程的逻辑，发送心跳
+     *
+     * （3）这边的话就是去发送这个心跳，走的是EurekaHttpClient的sendHeartbeat()方法，http://localhost:8080/v2/apps/ServiceA/i-000000-1，走的是put请求
+     *
+     * （4）负责承接服务实例的心跳相关的这些操作的，是ApplicationsResource，服务相关的controller。找到ApplicationResource，再次找到InstanceResource，通过PUT请求，可以找到renewLease方法。
+     *
+     * （5）通过注册表的renew()方法，进去完成服务续约，实际进入AbstractInstanceRegistry的renew()方法
+     *
+     * （6）从注册表的map中，根据服务名和实例id，获取一个Lease，实际的服务续约的逻辑，其实就是在Lease对象中，更新一下lastUpdateTimestamp这个时间戳，每次续约，就更新一下这个时间戳就ok了。
      */
     boolean renew() {
         EurekaHttpResponse<InstanceInfo> httpResponse;
@@ -966,6 +977,7 @@ public class DiscoveryClient implements EurekaClient {
                     && clientConfig.shouldRegisterWithEureka()
                     && clientConfig.shouldUnregisterOnShutdown()) {
                 applicationInfoManager.setInstanceStatus(InstanceStatus.DOWN);
+                //客户端下线、调用unregister()方法
                 unregister();
             }
 

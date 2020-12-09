@@ -240,6 +240,13 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
     public void openForTraffic(ApplicationInfoManager applicationInfoManager, int count) {
         // Renewals happen every 30 seconds and for a minute it should be a factor of 2.
         this.expectedNumberOfClientsSendingRenews = count;
+        /**
+         * protected void updateRenewsPerMinThreshold() {
+         *         this.numberOfRenewsPerMinThreshold = (int) (this.expectedNumberOfClientsSendingRenews
+         *                 * (60.0 / serverConfig.getExpectedClientRenewalIntervalSeconds())
+         *                 * serverConfig.getRenewalPercentThreshold()); //这里完全是读取用户自己配置的心跳检查时间，然后用60s / 配置时间
+         *     }
+         */
         updateRenewsPerMinThreshold();
         logger.info("Got {} instances from neighboring DS node", count);
         logger.info("Renew threshold is: {}", numberOfRenewsPerMinThreshold);
@@ -255,6 +262,7 @@ public class PeerAwareInstanceRegistryImpl extends AbstractInstanceRegistry impl
         }
         logger.info("Changing status to UP");
         applicationInfoManager.setInstanceStatus(InstanceStatus.UP);
+        // 此方法会做服务实例的自动摘除任务
         super.postInit();
     }
 
